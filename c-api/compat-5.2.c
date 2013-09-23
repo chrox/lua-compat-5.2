@@ -27,6 +27,7 @@ void lua_rawgetp (lua_State *L, int i, const void *p) {
 
 void lua_rawsetp (lua_State *L, int i, const void *p) {
   int abs_i = lua_absindex(L, i);
+  luaL_checkstack(L, 1, "not enough stack slots");
   lua_pushlightuserdata(L, (void*)p);
   lua_insert(L, -2);
   lua_rawset(L, abs_i);
@@ -35,6 +36,7 @@ void lua_rawsetp (lua_State *L, int i, const void *p) {
 
 void *luaL_testudata (lua_State *L, int i, const char *tname) {
   void *p = lua_touserdata(L, i);
+  luaL_checkstack(L, 2, "not enough stack slots");
   if (p == NULL || !lua_getmetatable(L, i))
     return NULL;
   else {
@@ -46,34 +48,6 @@ void *luaL_testudata (lua_State *L, int i, const char *tname) {
       p = NULL;
   }
   return p;
-}
-
-
-void lua_len (lua_State *L, int i) {
-  switch (lua_type(L, i)) {
-    case LUA_TSTRING: /* fall through */
-    case LUA_TTABLE:
-      lua_pushnumber(L, (int)lua_objlen(L, i));
-      break;
-    case LUA_TUSERDATA:
-      if (luaL_callmeta(L, i, "__len"))
-        break;
-      /* maybe fall through */
-    default:
-      luaL_error(L, "attempt to get length of a %s value",
-                 lua_typename(L, i));
-  }
-}
-
-
-int luaL_len (lua_State *L, int i) {
-  int res = 0, isnum = 0;
-  lua_len(L, i);
-  res = (int)lua_tointegerx(L, -1, &isnum);
-  lua_pop(L, 1);
-  if (!isnum)
-    luaL_error(L, "object length is not a number");
-  return res;
 }
 
 
@@ -170,13 +144,16 @@ void luaL_setmetatable (lua_State *L, const char *tname) {
 
 int luaL_getsubtable (lua_State *L, int i, const char *name) {
   int abs_i = lua_absindex(L, i);
-  lua_getfield(L, abs_i, name);
+  luaL_checkstack(L, 3, "not enough stack slots");
+  lua_pushstring(L, name);
+  lua_gettable(L, abs_i);
   if (lua_istable(L, -1))
     return 1;
   lua_pop(L, 1);
   lua_newtable(L);
-  lua_pushvalue(L, -1);
-  lua_setfield(L, abs_i, name);
+  lua_pushstring(L, name);
+  lua_pushvalue(L, -2);
+  lua_settable(L, abs_i);
   return 0;
 }
 
@@ -336,6 +313,34 @@ lua_Integer lua_tointegerx (lua_State *L, int i, int *isnum) {
   return n;
 }
 
+
+void lua_len (lua_State *L, int i) {
+  switch (lua_type(L, i)) {
+    case LUA_TSTRING: /* fall through */
+    case LUA_TTABLE:
+      lua_pushnumber(L, (int)lua_objlen(L, i));
+      break;
+    case LUA_TUSERDATA:
+      if (luaL_callmeta(L, i, "__len"))
+        break;
+      /* maybe fall through */
+    default:
+      luaL_error(L, "attempt to get length of a %s value",
+                 lua_typename(L, lua_type(L, i)));
+  }
+}
+
+
+int luaL_len (lua_State *L, int i) {
+  int res = 0, isnum = 0;
+  luaL_checkstack(L, 1, "not enough stack slots");
+  lua_len(L, i);
+  res = (int)lua_tointegerx(L, -1, &isnum);
+  lua_pop(L, 1);
+  if (!isnum)
+    luaL_error(L, "object length is not a number");
+  return res;
+}
 
 #endif /* LUA_VERSION_NUM == 501 */
 

@@ -64,15 +64,18 @@ lua_Number lua_tonumberx (lua_State *L, int i, int *isnum) {
 #define UDTNAME "_COMPAT52_SETUSERVALUE"
 
 static void pushudtable (lua_State *L) {
-  lua_getfield(L, LUA_REGISTRYINDEX, UDTNAME);
+  lua_pushstring(L, UDTNAME);
+  lua_rawget(L, LUA_REGISTRYINDEX);
   if (!lua_istable(L, -1)) {
     lua_pop(L, 1);
     lua_newtable(L); /* the udtable */
-    lua_pushvalue(L, -1);
-    lua_setfield(L, LUA_REGISTRYINDEX, UDTNAME);
+    lua_pushstring(L, UDTNAME);
+    lua_pushvalue(L, -2);
+    lua_rawset(L, LUA_REGISTRYINDEX);
     lua_newtable(L); /* the udtmetatable */
+    lua_pushliteral(L, "__mode");
     lua_pushliteral(L, "k");
-    lua_setfield(L, -2, "__mode");
+    lua_rawset(L, -3);
     lua_setmetatable(L, -2);
   }
 }
@@ -80,7 +83,7 @@ static void pushudtable (lua_State *L) {
 void lua_getuservalue (lua_State *L, int i) {
   int abs_i = lua_absindex(L, i);
   luaL_checktype(L, abs_i, LUA_TUSERDATA);
-  luaL_checkstack(L, 3, "not enough stack slots");
+  luaL_checkstack(L, 5, "not enough stack slots");
   lua_getfenv(L, abs_i);
   lua_pushvalue(L, LUA_GLOBALSINDEX);
   if (lua_rawequal(L, -1, -2)) {

@@ -1,6 +1,11 @@
 #include "lua.h"
 #include "lauxlib.h"
 
+#ifndef LUAMOD_API
+#define LUAMOD_API LUALIB_API
+#endif
+
+
 #if !defined(LUA_VERSION_NUM)
 /* Lua 5.0 */
 

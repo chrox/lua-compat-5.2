@@ -86,32 +86,61 @@ lua_Number lua_tonumberx (lua_State *L, int i, int *isnum) {
 }
 
 
+/* Yeah, I know, it's a reserved name ... */
+#define UDTNAME "_COMPAT52_SETUSERVALUE"
+
+static void pushudtable (lua_State *L) {
+  lua_getfield(L, LUA_REGISTRYINDEX, UDTNAME);
+  if (!lua_istable(L, -1)) {
+    lua_pop(L, 1);
+    lua_newtable(L); /* the udtable */
+    lua_pushvalue(L, -1);
+    lua_setfield(L, LUA_REGISTRYINDEX, UDTNAME);
+    lua_newtable(L); /* the udtmetatable */
+    lua_pushliteral(L, "k");
+    lua_setfield(L, -2, "__mode");
+    lua_setmetatable(L, -2);
+  }
+}
+
 void lua_getuservalue (lua_State *L, int i) {
-  luaL_checkstack(L, 2, "not enough stack slots");
-  lua_getfenv(L, i);
-  if (!lua_isnil(L, -1)) {
-    lua_pushvalue(L, LUA_GLOBALSINDEX);
-    if (lua_rawequal(L, -1, -2)) {
-      lua_pop(L, 1);
-      lua_pushnil(L);
-      lua_replace(L, -2);
-    }
+  int abs_i = lua_absindex(L, i);
+  luaL_checktype(L, abs_i, LUA_TUSERDATA);
+  luaL_checkstack(L, 3, "not enough stack slots");
+  lua_getfenv(L, abs_i);
+  lua_pushvalue(L, LUA_GLOBALSINDEX);
+  if (lua_rawequal(L, -1, -2)) {
+    lua_pop(L, 1);
+    lua_pushnil(L);
+    lua_replace(L, -2);
   } else {
     lua_pop(L, 1);
-    luaL_checktype(L, i, LUA_TUSERDATA);
+    pushudtable(L);
+    lua_pushvalue(L, abs_i);
+    lua_rawget(L, -2);
+    if (lua_toboolean(L, -1))
+      lua_pop(L, 2);
+    else {
+      lua_pop(L, 3);
+      lua_pushnil(L);
+    }
   }
 }
 
 void lua_setuservalue (lua_State *L, int i) {
+  int abs_i = lua_absindex(L, i);
+  luaL_checktype(L, abs_i, LUA_TUSERDATA);
+  luaL_checkstack(L, 3, "not enough stack slots");
   if (lua_isnil(L, -1)) {
-    luaL_checkstack(L, 1, "not enough stack slots");
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_replace(L, -2);
   }
-  if (!lua_setfenv(L, i)) {
-    lua_pushnil(L); /* setfenv popped one, so i might be invalid */
-    luaL_checktype(L, i, LUA_TUSERDATA);
-  }
+  lua_setfenv(L, abs_i);
+  pushudtable(L);
+  lua_pushvalue(L, abs_i);
+  lua_pushboolean(L, 1);
+  lua_rawset(L, -3);
+  lua_pop(L, 1);
 }
 
 
